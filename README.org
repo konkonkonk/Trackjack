@@ -1,8 +1,9 @@
 #+title: Trackjack README
 #+author: Quinn Borrok
+#+STARTUP: inlineimages
 
 
-./concept/trackjack.png
+[[./concept/trackjack.png]]
 
 
 * Project Overview
