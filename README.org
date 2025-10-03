@@ -1,6 +1,10 @@
 #+title: Trackjack README
 #+author: Quinn Borrok
 
+
+./concept/trackjack.png
+
+
 * Project Overview
 
 Trackjack is an extremely minimal linux-only terminal based music player. It uses its own organization method for storing lps, eps, singles, and user-created playlists. This method is largely based on my music listening needs specifically, so I would not recommend this program to everyone.
