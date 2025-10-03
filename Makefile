@@ -6,7 +6,7 @@ PROJECTNAME := trackjack
 
 LDFLAGS := -Iheaders -lncurses -lopenal -lalut -lm
 
-OPTPARAM := -O1
+OPTPARAM := -O5
 
 DEBUGPARAM :=
 

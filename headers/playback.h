@@ -19,8 +19,6 @@ If not, see <https://www.gnu.org/licenses/>.
 
 
 
-#include <song_def.h>
-
 void play_single(SONG *current_song);
 void play_song(SONG *current_song);
 void playback_checkstate(void);
