@@ -1,0 +1,20 @@
+* Playback system outline
+
+** Optimal behavior
+
+1. Automatically play songs continuously in album/playlist
+2. Automatically detach and delete buffers after being processed
+
+** Idea
+
+Function to play standalone song.
+
+Function to play a song and load the next in queue.
+        Pause previous source, detach and delete buffer, delete source.
+        Decode selected song, attach to new source and play.
+        Decode next song, queue to the source.
+
+
+Check if current source has any processed buffers, if so:
+        Delete processed buffer.
+        Load next song into buffer, and into queue.
