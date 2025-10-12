@@ -19,16 +19,32 @@ If not, see <https://www.gnu.org/licenses/>.
 
 
 
-void play_single(SONG *current_song);
-void play_song(SONG *current_song);
-void playback_checkstate(void);
-unsigned int retrieve_playback_position(void);
+#define META_TRACK_TITLE 0
+#define META_ABLUM_TITLE 1
+#define META_ALBUM_ARTIST 2
+#define META_TRACK_ARTISTS 3
+#define MAX_META_TYPE_STR 3
+
+#define META_TRACK_DURATION 4
+#define META_YEAR 5
+#define MAX_META_TYPE 5
+
+#define MAX_VOLUME 180
+
+void playback_init(void);
+
+char *metadata_retrieve_str(int);
+int metadata_retrieve_int(int);
+
+int playback_read_clock(void);
+void playback_cleanup(void);
+
+void playback_update(void);
+void playback_start(const char *);
+void playback_queue(const char *);
+
+int set_master_volume(unsigned int);
 int check_playback_active(void);
-SONG *retrieve_song_playing(void);
-unsigned int retrieve_song_duration(void);
-
 int check_playback_state(void);
-void pause_playback(void);
-void unpause_playback(void);
-
-int set_volume(unsigned int);
+void playback_pause(void);
+void playback_unpause(void);

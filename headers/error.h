@@ -17,8 +17,12 @@ If not, see <https://www.gnu.org/licenses/>.
 */
 
 
-
 #include <AL/al.h>
 #include <error_codes.h>
 
-void trackjack_error(int, ALenum);
+typedef union lib_error {
+  ALenum al_error;
+  int av_error;
+} LIB_ERROR;
+
+void trackjack_error(int, LIB_ERROR);

@@ -1,0 +1,70 @@
+Now that I've redesigned the ui, I'm realizing that it would also be really helpful to rewrite the playback system, and audio decoder.
+
+I know it's possible to create something much more elegant and easy to work with.
+Ideally it will slowly decode a song as it is playing, to save memory and make playback more responsive.
+I will need to store songs in a new struct, although I don't think they need to link.
+I should probably just have two of the structs. One for the song playing, and one for the next song.
+That way if we run out of packets to decode for the first one we can very easily switch sources.
+
+It should never directly interact with the ui system. I want it to be contained and coherent.
+
+Here is an outline of the struct for audio sources
+
+#+BEGIN_SRC C
+typedef struct {
+  char *track;
+  char *album;
+  char *artist;
+  char *features;
+  int year;
+  int duration;
+} METADATA;
+
+typedef struct {
+  AVFormatContext *format_context;
+  AVCodecParameters *codec_param;
+  AVCodec *codec;
+  AVCodecContext *codec_context;
+  SwrContext *swr_context;
+  METADATA *metadata;
+} AUDIO_SOURCE;
+#+END_SRC
+
+
+Here is an example of how I would like to be able to interface with it.
+
+#+BEGIN_SRC C
+int main(void) {
+  playback_start("music/GNX/gnx.flac");
+  playback_queue("music/GNX/gloria.flac");
+  while(1) {
+    update_playback();
+    printf("%s\n", metadata_retrieve_str(META_TRACK_TITLE));
+    printf("%d\n", metadata_retrieve_int(META_YEAR));
+    printf("%d / %d", playback_retrieve_position(), metadata_retrieve_int(META_DURATION));
+  }
+}
+
+#+END_SRC
+
+No longer will the playback system itself try to queue up new songs.
+And no longer will queueing be done just through queueing another buffer to an openAL source.
+I'm gonna actually keep track of things.
+
+
+Function outlines:
+
+* playback_start
+playback_start will take a char ptr to a filename
+
+It will generate an AUDIO_SOURCE for the new song if it is a valid audio file.
+It will kill the current openAL source and delete any loaded buffers.
+
+It will decode and start playing the first chunk of audio data.
+
+
+* playback_queue
+playback_queue will create an AUDIO_SOURCE for the next song if it is a valid audio file
+
+It will free the existing queued source if it exists.
+Then it will save the new audio source there to be played later.

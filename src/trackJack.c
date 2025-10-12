@@ -26,103 +26,38 @@ If not, see <https://www.gnu.org/licenses/>.
 #include <string.h>
 #include <unistd.h>
 #include <AL/al.h>
-#include <AL/alc.h>
 #include <AL/alut.h>
 
-#include <song_def.h>
-#include <playlist.h>
 #include <playback.h>
-#include <screen.h>
 #include <clock.h>
+#include <ui.h>
 
+#define KEY_ESC 28
 #define KEY_CR 10
 #define KEY_SPC 32
 #define KEY_COLON 58
 
 
-SONG *current_head;
-int current_len;
-int y = 0;
+#define NO_COMMAND_HINT NULL
 
 
 _Bool paused = 0;
 
 void parse_cmd(char *command);
 
-void remove_newline(char *buffer);
 
 void init(void) {
-  chdir("test_homedir/");
 
   initscr();
   curs_set(TRUE);
   keypad(stdscr, TRUE);
+  init_ui();
   init_clock();
+  playback_init();
   alutInit(NULL, NULL);
-}
-
-void main_loop(SONG *song_head, int len) {
-  y = 0;
-  int i;
-  int ch = 0;
-  SONG *buffer;
-  SONG *temp_song;
-  int temp, playback_position = 4;
-  int song_duration = 0;
-
-  nodelay(stdscr, 1);
-  while(ch != KEY_COLON) {
-
-    move(y, 0);
-    refresh();
-
-    ch = getch();
-
-    switch(ch) {
-      case KEY_UP:
-        if(y > 0) {y--;}
-        break;
-      case KEY_DOWN:
-        if(y < len-1) {y++;}
-        break;
-    }
-
-    if(ch == KEY_CR) {
-      buffer = song_head;
-      for(i = 0; i < y; i++) {
-        buffer = buffer->next;
-      }
-      play_song(buffer);
-    } else if(ch == KEY_SPC) {
-      if(check_playback_state()) {
-        unpause_playback();
-      } else {
-        pause_playback();
-      }
-    }
-
-    temp = retrieve_playback_position();
-    if(temp != playback_position) {
-      playback_position = temp;
-      mvprintw(32, 4, "%d:%2d", playback_position / 60, playback_position % 60);
-    }
-
-    if((buffer = retrieve_song_playing()) != NULL && buffer != temp_song) {
-      temp_song = buffer;
-      song_duration = retrieve_song_duration();
-      mvprintw(32, 10, "                                                                                ");
-      mvprintw(32, 10, "%s  %d:%2d", temp_song->filename, song_duration / 60, song_duration % 60);
-    }
-
-    update_msgbox();
-
-    playback_checkstate();
-
-    sleep_until_next_tick();
-  }
-  nodelay(stdscr, 0);
 
 }
+
 
 
 
@@ -146,52 +81,92 @@ int main(int argc, char **argv) {
       return 0;
     }
 
-    if(strcmp(argv[1], "--script") == 0 && argc == 3) {
-      FILE *script = fopen(argv[2], "r");
 
-      init();
-
-      while(fgets(command, 50, script)) {
-        remove_newline(command);
-        parse_cmd(command);
-      }
-
-      fclose(script);
-      return 0;
-    }
   }
 
   init();
+  chdir("test_homedir/");
+  ui_open_dir(".");
 
-  COM_RELEASE *trackjack = read_com_release("Trackjack Intro", 0);
-  display_com_release(trackjack);
-  current_head = trackjack->track_head;
-  current_len = trackjack->track_count;
-  free_com_release(trackjack);
+  display_msg("Welcome to Trackjack. Type \':\' to open command window. Use command \'h\' for help.");
 
+  int ch;
+  char *name = NULL;
+  _Bool type;
+  _Bool exit = 0;
+  int fs_index = 0;
+  int last_pos = 0;
 
-  while(1) {
-    noecho();
-    display_msgbox();
+  noecho();
+  nodelay(stdscr, 1);
+  while(ch != KEY_ESC && exit == 0) {
+    ch = getch();
 
-    if(first_loop) {
-      display_msg("Welcome to Trackjack. Type \':\' to open command window. Use command \'h\' for help.");
-      first_loop = 0;
+    switch(ch) {
+      case KEY_UP:
+        user_nav_up();
+        break;
+      case KEY_DOWN:
+        user_nav_down();
+        break;
+      case KEY_CR:
+        name = retrieve_fs_element(&type, &fs_index);
+        if(type == 0) {
+          ui_open_dir(name);
+        }
+        else {
+          playback_start(name);
+        }
+        free(name);
+        break;
+      case KEY_SPC:
+        if(check_playback_state()) {
+          playback_unpause();
+        }
+        else {
+          playback_pause();
+        }
+        break;
+      case KEY_COLON:
+        curs_set(TRUE);
+        display_command_bar(NO_COMMAND_HINT);
+        nodelay(stdscr, 0);
+        echo();
+        refresh();
+        getstr(command);
+
+        if(strcmp(command, "q") == 0) {
+          exit = 1;
+        }
+        else {
+          parse_cmd(command);
+        }
+
+        noecho();
+        clear_command_bar();
+        nodelay(stdscr, 1);
+        break;
     }
 
-    main_loop(current_head, current_len);
-    display_command_line();
-    echo();
-    getstr(command);
-    if(strcmp(command, "q") == 0) {break;}
+    update_msgbox();
 
-    parse_cmd(command);
+    if(last_pos != playback_read_clock()) {
+      last_pos = playback_read_clock();
+      display_playback_bar();
+    }
+
+    reset_cursor();
+
+
     refresh();
+    sleep_until_next_tick();
   }
+  nodelay(stdscr, 0);
 
   free(command);
 
-  free_all_msg();
+  cleanup_ui();
+  playback_cleanup();
   alutExit();
   endwin();
   return 0;

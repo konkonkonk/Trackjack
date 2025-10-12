@@ -1,0 +1,30 @@
+I am redesigning the user interface and the commercial release system. I recently tried using cmus again and I realized their ui is orders of magnitude better than mine.
+I'm not going to copy their whole style as trackjack honestly doesn't need to be that modular or scaleable, and I don't feel like making something unoriginal.
+However, I do want a filesystem explorer similar to theirs as an alternative to my weird ass com release system.
+If I was designing trackjack from scratch now I never would have created that stupid system. I made it because I was a comparatively much worse programmer at the time I started developing it.
+It was the easiest way I could think of doing this at the time.
+
+
+
+FILE WINDOW:
+The new system will list out all audio files in your current directory, instead of a com release.
+It will also list ../ at the top to give you the ability to navigate upstream.
+Below ../ will be all of the sub-directories in the loaded directory.
+I'm going to name this section of the screen the file window.
+All of the things it displays will be called filesystem elements. Probably fs_element in code.
+
+The file window will be limited to a specific size both x and y.
+If a file's name exceeds the x size, it will spill over to the next line.
+If a directory's elements exceed the y size, the list can be scrolled up and down by the user by using the up and down arrows at the top and bottom rows of the file window.
+
+
+
+(Both the playback bar and metadata bar should be located under the message box window, so they will have the entire length of the terminal to print to.)
+
+PLAYBACK BAR:
+The playback bar lists the timestamp as something like 0:00 / 9:59, and then the name of the file being played.
+It will be located immediately below the file window.
+
+METADATA BAR:
+The metadata bar will list the album, artist, year, and features.
+I might also add entries for a producer credit, and music label, if the metadata contains them.

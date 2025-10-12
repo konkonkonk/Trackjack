@@ -4,9 +4,9 @@ SRC := $(wildcard src/*.c)
 
 PROJECTNAME := trackjack
 
-LDFLAGS := -Iheaders -lncurses -lopenal -lalut -lm
+LDFLAGS := -Iheaders -lncurses -lopenal -lalut -lm -lavcodec -lavformat -lavutil -lswresample
 
-OPTPARAM := -O5
+OPTPARAM := -O3
 
 DEBUGPARAM :=
 

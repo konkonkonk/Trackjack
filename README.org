@@ -8,33 +8,29 @@
 
 * Project Overview
 
-Trackjack is an extremely minimal linux-only terminal based music player. It uses its own organization method for storing lps, eps, singles, and user-created playlists. This method is largely based on my music listening needs specifically, so I would not recommend this program to everyone.
+Trackjack is a very minimal linux-only terminal based music player.
 
 ** Limitations
 
-1. Trackjack is currently only capable of opening .flac audio files. Support will be added in the future for mp3, vorbis, opus, and raw PCM data in the form of .wav files.
+1. Trackjack cannot decode vorbis audio streams. Opus is untested. I recommend using flac or mp3. This will be fixed soon.
 
-2. It can also only play flac files recorded at 48000 hz. For whatever reason the flac decoding library I am using, dr_flac, will not read the sample rate of a file. So, I have to assume it to be 48000. If you try playing a file that is not 48000 hz, it will play at an incorrect speed. You can solve this by using the following ffmpeg command to change the sample rate of the audio:
+2. Trackjack is also currently incapable of switching audio devices. To create the openAL context in which audio is played, I use the alutInit() function, which is part of the apparently largely deprecated openAL utility toolkit library. This function automatically assumes which device to bind to, and I have not yet implemented a way to change it.
 
-#+BEGIN_SRC sh
-ffmpeg -i input_file.flac -ar 48000 output_file.flac
-#+END_SRC
-
-This will also be fixed in the future. I plan to switch to ffmpeg's avcodec instead of the simpler but more limited dr_flac.
-
-3. Trackjack is also currently incapable of switching audio devices. To create the openAL context in which audio is played, I use the alutInit() function, which is part of the apparently largely deprecated openAL utility toolkit library. This function automatically assumes which device to bind to, and I have not yet implemented a way to change it.
-
-4. Trackjack is currently built to work in a specific size of terminal. If you would like it to be smaller you can change the macros around in screen.c and see what happens. In the future I will have trackjack either automatically fit itself into the window size its currently in, or add much better methods to control window size during compilation.
+3. Trackjack cannot dynamically resize the window it is running in. If you resize it while the program is running, you will need to restart it to properly fill the terminal.
 
 ** Features
 
 1. Play music
 
+2. Navigate file systems
+
+3. Display relevant metadata
+
 
 ** Build instructions
 
 1. Ensure you have the following programs installed: git, gcc, make
-2. Ensure you have the following libraries installed: openAL, ncurses
+2. Ensure you have the following libraries installed: openAL-soft, ncurses, libav
 
 3. Download trackjack's source code and navigate to its folder:
    #+BEGIN_SRC sh

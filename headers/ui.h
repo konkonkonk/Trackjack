@@ -18,18 +18,31 @@ If not, see <https://www.gnu.org/licenses/>.
 
 
 
+#define ELEM_DIR 0
+#define ELEM_FILE 1
 
-
-void display_playlist(PLAYLIST *new);
-
-void display_com_release(COM_RELEASE *record);
-
-void display_command_line(void);
-
-void display_msg(char *msg);
-
+void init_ui(void);
 void update_msgbox(void);
+void display_msg(char *msg);
+//void display_msgbox(void);
+void display_file_window(void);
 
-void display_msgbox(void);
+void display_command_bar(char *);
+void clear_command_bar(void);
+void display_playback_bar(void);
+void display_song_playback_bar(char *song_title);
+void display_metadata_bar(char *album, char *artist, unsigned int, char *features);
+void user_nav_up(void);
+void user_nav_down(void);
+void ui_open_dir(const char *dir_name);
+void reset_cursor(void);
+
+int fs_list_check_valid(int);
+char *fs_list_find_name(int);
 
 void free_all_msg(void);
+void update_playback_bar(void);
+
+char *retrieve_fs_element(_Bool *, int *);
+
+void cleanup_ui(void);

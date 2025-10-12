@@ -19,3 +19,6 @@ If not, see <https://www.gnu.org/licenses/>.
 
 #define JACK_ERR_DECODER 0
 #define JACK_ERR_BUFFERGEN 1
+#define JACK_ERR_LIBAV_MSG 2
+#define JACK_ERR_OPENDIR 3
+#define JACK_ERR_PLAYBACK_SOURCE_PREP 4

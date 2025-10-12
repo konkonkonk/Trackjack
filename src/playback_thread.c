@@ -19,8 +19,18 @@ If not, see <https://www.gnu.org/licenses/>.
 
 
 
-typedef struct song_node {
-  _Bool favorite;
-  char *filename;
-  struct song_node *next;
-} SONG;
+#include <unistd.h>
+
+
+extern int sleep_time;
+void playback_update(void);
+
+void *playback_thread(void *) {
+  while(1) {
+    usleep(sleep_time);
+    playback_update();
+
+  }
+
+  return NULL;
+}

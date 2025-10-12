@@ -23,14 +23,22 @@ If not, see <https://www.gnu.org/licenses/>.
 #include <stdio.h>
 #include <string.h>
 #include <AL/al.h>
+#include <libavutil/error.h>
 #include <ncurses.h>
+#include <errno.h>
 
 #include <error_codes.h>
-#include <song_def.h>
-#include <playlist.h>
-#include <screen.h>
+#include <ui.h>
 
-void trackjack_error(int error, ALenum al_error) {
+
+typedef union lib_error {
+  ALenum al_error;
+  int av_error;
+  int generic;
+} LIB_ERROR;
+
+
+void trackjack_error(int error, LIB_ERROR liberr) {
   char *final_msg;
 
   switch(error) {
@@ -40,13 +48,31 @@ void trackjack_error(int error, ALenum al_error) {
       break;
     case JACK_ERR_BUFFERGEN:
       char msg[] = "TJ_ERR: Failed to create or fill audio buffer --- openAL message: ";
-      const char *al_msg = alGetString(al_error);
+      const char *al_msg = alGetString(liberr.al_error);
       final_msg = malloc(strlen(msg) + strlen(al_msg));
 
       sprintf(final_msg, "%s%s", msg, al_msg);
       display_msg(final_msg);
       free(final_msg);
       move(0, 0);
+      break;
+    case JACK_ERR_LIBAV_MSG:
+      char msg2[] = "FFMPEG: ";
+      const char *av_msg = av_err2str(liberr.av_error);
+      final_msg = malloc(strlen(msg2) + strlen(av_msg));
+
+      sprintf(final_msg, "%s%s", msg2, av_msg);
+      display_msg(final_msg);
+      free(final_msg);
+      move(0, 0);
+      break;
+    case JACK_ERR_OPENDIR:
+      display_msg("TJ_ERR: Failed to open directory. --- errno: ");
+      display_msg(strerror(liberr.generic));
+
+      break;
+    case JACK_ERR_PLAYBACK_SOURCE_PREP:
+      display_msg("TJ_ERR: Failed to prep audio source for playback.");
       break;
   }
 
