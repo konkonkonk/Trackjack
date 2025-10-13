@@ -56,6 +56,9 @@ static unsigned int user_selected_element = 0;
 static unsigned int user_y_pos = 0;
 
 
+static int message_count = 0;
+
+
 // Types for FS_ELEMENTS
 #define ELEM_DIR 0
 #define ELEM_FILE 1
@@ -136,6 +139,8 @@ void free_msg(MSG *msg) {
 
   free(msg);
 
+  message_count--;
+
   return;
 }
 
@@ -175,8 +180,11 @@ void free_oldest_msg(void) {
 
 void update_msgbox(void) {
   int i, y = message_box_size_y - 1;
+  static int message_count_last = 0;
 
   MSG *temp = latest_msg;
+  if(message_count_last == message_count) {return;}
+  message_count_last = message_count;
 
   if(temp == NULL) {return;}
   werase(message_box);
@@ -221,6 +229,7 @@ void display_msg(char *msg) {
   temp->last = latest_msg;
   latest_msg = temp;
   msgbox_total_linecount += ptr_count;
+  message_count++;
 
   return;
 }
@@ -259,7 +268,6 @@ void free_fs_list(void) {
 
 
 void add_fs_element(struct dirent *dir) {
-  if(dir->d_type != DT_DIR && dir->d_type != DT_REG) {return;}
   FS_ELEMENT *new_elem = malloc(sizeof(FS_ELEMENT));
 
   if(dir->d_type == DT_DIR) {

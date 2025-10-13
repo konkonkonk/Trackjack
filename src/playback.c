@@ -86,7 +86,7 @@ static AVFrame *pFrame = NULL;
 
 
 static ALuint source;
-static ALuint buffers[2];
+static ALuint buffers[3];
 
 
 int sleep_time = 10000;
@@ -214,6 +214,10 @@ uint8_t *decode_chunk(AUDIO_SOURCE *song, int *buf_size) {
   if(frame_read == 0) {return NULL;}
 
   dst_nb_samples = swr_get_out_samples(song->swr_context, pFrame->nb_samples);
+
+  float temp = (float)dst_nb_samples / (float)song->samplerate;
+  sleep_time = (temp * 1000000) + 1;
+
   av_samples_alloc_array_and_samples(&buf, &dst_linesize, channels, dst_nb_samples, AV_SAMPLE_FMT_FLT, 0);
 
   swr_convert(song->swr_context, buf, dst_nb_samples, (const uint8_t **)pFrame->extended_data, pFrame->nb_samples);
@@ -258,6 +262,10 @@ void free_audio_source(AUDIO_SOURCE *song) {
 
 
 void playback_cleanup(void) {
+  pthread_cancel(thread);
+  pthread_join(thread, NULL);
+
+
   kill_openal_source();
 
   if(active_sources[0]) {free_audio_source(active_sources[0]);}
@@ -266,8 +274,6 @@ void playback_cleanup(void) {
   if(pPacket) {av_packet_free(&pPacket);}
   if(pFrame) {av_frame_free(&pFrame);}
 
-  pthread_cancel(thread);
-  pthread_join(thread, NULL);
 
   return;
 }
@@ -366,23 +372,26 @@ void playback_update(void) {
 
   ALint value;
   alGetSourcei(source, AL_BUFFERS_PROCESSED, &value);
-  if(value == 0) {return;}
+  if(value <= 0) {return;}
+
+
+  buffers[2] = buffers[0];
   buffers[0] = buffers[1];
-  buffers[1]++;
+
+  buffers[1] = buffers[2];
+  alSourceUnqueueBuffers(source, 1, &buffers[1]);
 
   uint8_t *buf = NULL;
   int buf_size;
   if((buf = decode_chunk(active_sources[0], &buf_size)))
     {
-    alGenBuffers(1, &buffers[1]);
     bind_chunk(active_sources[0], buf, buf_size, buffers[1]);
     alSourceQueueBuffers(source, 1, &buffers[1]);
   }
   else if(active_sources[1])
     {
-
     prep_audio_source(active_sources[1]);
-    alGenBuffers(1, &buffers[1]);
+
     bind_chunk(active_sources[1], buf, buf_size, buffers[1]);
     alSourceQueueBuffers(source, 1, &buffers[1]);
 
@@ -394,6 +403,7 @@ void playback_update(void) {
     {
     active_sources[0] = NULL;
   }
+
 
   return;
 }
@@ -413,22 +423,6 @@ void playback_start(const char *filename) {
     return;
   }
 
-  switch(new_song->samplerate) {
-    case 44100:
-      sleep_time = 60000;
-      break;
-    case 48000:
-      sleep_time = 50000;
-      break;
-    case 96000:
-      sleep_time = 30000;
-      break;
-    case 192000:
-      sleep_time = 10000;
-      break;
-    sleep_time = 15000;
-  }
-
   // Two chunks are loaded instead of one
   // because while the second chunk is playing later,
   // the third will be loaded. And so on
@@ -442,6 +436,13 @@ void playback_start(const char *filename) {
   pthread_join(thread, NULL);
 
   kill_openal_source();
+  if(active_sources[0]) {free_audio_source(active_sources[0]);}
+  if(active_sources[1]) {free_audio_source(active_sources[1]);}
+
+  active_sources[0] = new_song;
+  active_sources[1] = NULL;
+
+
   alGenSources(1, &source);
 
   alGenBuffers(2, buffers);
@@ -451,18 +452,13 @@ void playback_start(const char *filename) {
   alSourceQueueBuffers(source, 2, buffers);
   alSourcePlay(source);
 
+  pthread_create(&thread, NULL, playback_thread, NULL);
 
-  if(active_sources[0]) {free_audio_source(active_sources[0]);}
-  if(active_sources[1]) {free_audio_source(active_sources[1]);}
-
-  active_sources[0] = new_song;
-  active_sources[1] = NULL;
 
   display_metadata_bar(new_song->metadata->album, new_song->metadata->artist, new_song->metadata->year, new_song->metadata->features);
   display_song_playback_bar(new_song->metadata->track);
 
 
-  pthread_create(&thread, NULL, playback_thread, NULL);
 
   return;
 }

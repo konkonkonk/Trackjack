@@ -18,16 +18,35 @@ If not, see <https://www.gnu.org/licenses/>.
 
 
 
-
+#include <time.h>
 #include <unistd.h>
 
+
+static int last_state;
 
 extern int sleep_time;
 void playback_update(void);
 
+
+void usleep_until(int duration) {
+  int current_state = clock() * 1000000 / CLOCKS_PER_SEC;
+  if(current_state - last_state >= sleep_time) {
+    return;
+  }
+
+  int diff = current_state - last_state;
+  usleep(sleep_time - diff);
+}
+
+
 void *playback_thread(void *) {
+  usleep(sleep_time);
+  last_state = clock() * 1000000 / CLOCKS_PER_SEC;
+  playback_update();
+
   while(1) {
-    usleep(sleep_time);
+    usleep_until(sleep_time);
+    last_state = clock() * 1000000 / CLOCKS_PER_SEC;
     playback_update();
 
   }
