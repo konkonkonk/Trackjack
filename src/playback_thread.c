@@ -24,6 +24,10 @@ If not, see <https://www.gnu.org/licenses/>.
 
 static int last_state;
 
+
+
+volatile _Bool stop_thread = 0;
+
 extern int sleep_time;
 void playback_update(void);
 
@@ -42,14 +46,19 @@ void usleep_until(int duration) {
 void *playback_thread(void *) {
   usleep(sleep_time);
   last_state = clock() * 1000000 / CLOCKS_PER_SEC;
+  if(stop_thread) {
+    stop_thread = 0;
+    return NULL;
+  }
   playback_update();
 
-  while(1) {
+  while(!stop_thread) {
     usleep_until(sleep_time);
     last_state = clock() * 1000000 / CLOCKS_PER_SEC;
     playback_update();
 
   }
 
+  stop_thread = 0;
   return NULL;
 }

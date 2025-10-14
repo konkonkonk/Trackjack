@@ -88,6 +88,8 @@ static AVFrame *pFrame = NULL;
 static ALuint source;
 static ALuint buffers[3];
 
+extern volatile _Bool stop_thread;
+
 
 int sleep_time = 10000;
 
@@ -216,7 +218,7 @@ uint8_t *decode_chunk(AUDIO_SOURCE *song, int *buf_size) {
   dst_nb_samples = swr_get_out_samples(song->swr_context, pFrame->nb_samples);
 
   float temp = (float)dst_nb_samples / (float)song->samplerate;
-  sleep_time = (temp * 1000000) + 1;
+  sleep_time = (temp * 1000000) * 0.8;
 
   av_samples_alloc_array_and_samples(&buf, &dst_linesize, channels, dst_nb_samples, AV_SAMPLE_FMT_FLT, 0);
 
@@ -374,11 +376,12 @@ void playback_update(void) {
   alGetSourcei(source, AL_BUFFERS_PROCESSED, &value);
   if(value <= 0) {return;}
 
+  ALuint unq_buf = 0;
 
   buffers[2] = buffers[0];
   buffers[0] = buffers[1];
-
   buffers[1] = buffers[2];
+
   alSourceUnqueueBuffers(source, 1, &buffers[1]);
 
   uint8_t *buf = NULL;
@@ -432,7 +435,10 @@ void playback_start(const char *filename) {
   uint8_t *buf_2 = decode_chunk(new_song, &buf_size_2);
 
   //kill thread
-  pthread_cancel(thread);
+  //pthread_cancel(thread);
+  //pthread_join(thread, NULL);
+
+  stop_thread = 1;
   pthread_join(thread, NULL);
 
   kill_openal_source();
