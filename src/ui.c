@@ -20,6 +20,7 @@ If not, see <https://www.gnu.org/licenses/>.
 
 
 #include <stdlib.h>
+#include <stdbool.h>
 #include <string.h>
 #include <stdio.h>
 #include <unistd.h>
@@ -60,21 +61,30 @@ static int message_count = 0;
 
 
 // Types for FS_ELEMENTS
-#define ELEM_DIR 0
-#define ELEM_FILE 1
+#define ELEM_DIR false
+#define ELEM_FILE true
+
+struct fs_elem_data {
+  unsigned int line_count;
+  bool type;
+};
 
 typedef struct fs_elem_node {
   char **name;
-  unsigned int line_count;
-  _Bool type;
+  struct fs_elem_data fs_elem_data;
   struct fs_elem_node *next;
 } FS_ELEMENT;
 
+// alignment: 8 bytes
+// size: 24 bytes
+
 static char upstream_fs[] = "../";
 static char *msg_ptr[] = {upstream_fs};
+static const struct fs_elem_data upstream_fs_data = {.line_count = 1, .type = ELEM_DIR};
 
-static FS_ELEMENT head = {.name = msg_ptr, .line_count = 1, .type = ELEM_DIR, .next = NULL};
+static FS_ELEMENT head = {.name = msg_ptr, .fs_elem_data = upstream_fs_data, .next = NULL};
 static unsigned int file_list_depth = 0;
+
 
 
 typedef struct msg_node {
@@ -83,10 +93,12 @@ typedef struct msg_node {
   struct msg_node *last;
 } MSG;
 
+// I'm not sure if i can make this MSG struct have a smaller footprint or not
+// its 24 bytes currently
+
+
 static MSG *latest_msg = NULL;
 static unsigned int msgbox_total_linecount = 0;
-
-static _Bool update_track_duration = 0;
 
 
 void init_ui(void) {
@@ -238,7 +250,7 @@ void display_msg(char *msg) {
 
 void free_fs_element(FS_ELEMENT *elem) {
   int i;
-  for(i = 0; i < elem->line_count; i ++) {
+  for(i = 0; i < elem->fs_elem_data.line_count; i ++) {
     free(elem->name[i]);
   }
   free(elem->name);
@@ -271,8 +283,8 @@ void add_fs_element(struct dirent *dir) {
   FS_ELEMENT *new_elem = malloc(sizeof(FS_ELEMENT));
 
   if(dir->d_type == DT_DIR) {
-    new_elem->type = ELEM_DIR;
-  } else {new_elem->type = ELEM_FILE;}
+    new_elem->fs_elem_data.type = ELEM_DIR;
+  } else {new_elem->fs_elem_data.type = ELEM_FILE;}
 
   unsigned int remainder_buffer = 1;
   unsigned int length = strlen(dir->d_name);
@@ -281,7 +293,7 @@ void add_fs_element(struct dirent *dir) {
   unsigned int ptr_count = (length / file_window_size_x) + remainder_buffer;
   char **name_ptrs = malloc(ptr_count * sizeof(char *));
 
-  new_elem->line_count = ptr_count;
+  new_elem->fs_elem_data.line_count = ptr_count;
   char *name = dir->d_name;
   char *save_name;
 
@@ -333,19 +345,19 @@ void display_file_window(void) {
 
 
   while(undisplayed_lines != current_file_window_display_offset) {
-    if(start_element->line_count > current_file_window_display_offset - undisplayed_lines) {
+    if(start_element->fs_elem_data.line_count > current_file_window_display_offset - undisplayed_lines) {
       start_line_number = current_file_window_display_offset - undisplayed_lines;
       break;
     }
     else {
-      undisplayed_lines += start_element->line_count;
+      undisplayed_lines += start_element->fs_elem_data.line_count;
       start_element = start_element->next;
     }
   }
 
   int i;
 
-  for(i = start_line_number; i < start_element->line_count; i++) {
+  for(i = start_line_number; i < start_element->fs_elem_data.line_count; i++) {
     mvwprintw(file_window, y, 0, "%s", start_element->name[i]);
     y++;
   }
@@ -353,7 +365,7 @@ void display_file_window(void) {
   start_element = start_element->next;
 
   while(start_element) {
-    if(start_element->line_count > file_window_size_y - y) {
+    if(start_element->fs_elem_data.line_count > file_window_size_y - y) {
       for(i = 0; i < file_window_size_y - y + 1; i++) {
         mvwprintw(file_window, y, 0, "%s", start_element->name[i]);
         y++;
@@ -361,7 +373,7 @@ void display_file_window(void) {
       break;
     }
     else {
-      for(i = 0; i < start_element->line_count; i++) {
+      for(i = 0; i < start_element->fs_elem_data.line_count; i++) {
         mvwprintw(file_window, y, 0, "%s", start_element->name[i]);
         y++;
       }
@@ -446,7 +458,7 @@ int fs_list_check_valid(int index) {
   if(index > file_list_depth) {return 1;}
   FS_ELEMENT *temp = find_fs_element(index);
 
-  if(temp->type == 0) {return 1;}
+  if(temp->fs_elem_data.type == 0) {return 1;}
   return 0;
 }
 
@@ -460,9 +472,9 @@ char *fs_list_find_name(int index) {
     elem = elem->next;
   }
 
-  char *ret = calloc((strlen(elem->name[0]) * elem->line_count) + 1, 1);
+  char *ret = calloc((strlen(elem->name[0]) * elem->fs_elem_data.line_count) + 1, 1);
   char *ret_save = ret;
-  for(i = 0; i < elem->line_count; i++) {
+  for(i = 0; i < elem->fs_elem_data.line_count; i++) {
     sprintf(ret, "%s\0", elem->name[i]);
     ret += strlen(elem->name[i]);
   }
@@ -477,15 +489,15 @@ void user_nav_up(void) {
   if(user_selected_element == 0) {return;}
   user_selected_element--;
   FS_ELEMENT *selected = find_fs_element(user_selected_element);
-  int diff = user_y_pos - selected->line_count;
+  int diff = user_y_pos - selected->fs_elem_data.line_count;
 
   if(diff < 0) {
      // Scroll up if necessary
-     current_file_window_display_offset -= selected->line_count - user_y_pos;
+     current_file_window_display_offset -= selected->fs_elem_data.line_count - user_y_pos;
      user_y_pos = 0;
   }
   else {
-    user_y_pos -= selected->line_count;
+    user_y_pos -= selected->fs_elem_data.line_count;
   }
 
   move(user_y_pos, 0);
@@ -497,13 +509,13 @@ void user_nav_down(void) {
   if(user_selected_element == file_list_depth) {return;}
   user_selected_element++;
   FS_ELEMENT *selected = find_fs_element(user_selected_element - 1);
-  int save_prev_linecount = selected->line_count;
+  int save_prev_linecount = selected->fs_elem_data.line_count;
   selected = selected->next;
 
-  if(user_y_pos + (save_prev_linecount - 1) + selected->line_count >= file_window_size_y) {
+  if(user_y_pos + (save_prev_linecount - 1) + selected->fs_elem_data.line_count >= file_window_size_y) {
     // Scroll down if necessary
-    current_file_window_display_offset += (user_y_pos + (save_prev_linecount - 1) + selected->line_count + 1) - file_window_size_y;
-    user_y_pos = file_window_size_y - (selected->line_count);
+    current_file_window_display_offset += (user_y_pos + (save_prev_linecount - 1) + selected->fs_elem_data.line_count + 1) - file_window_size_y;
+    user_y_pos = file_window_size_y - (selected->fs_elem_data.line_count);
   }
   else {
     user_y_pos += save_prev_linecount;
@@ -518,13 +530,13 @@ char *retrieve_fs_element(_Bool *type, int *index) {
   FS_ELEMENT *elem = find_fs_element(user_selected_element);
   int i;
 
-  *type = elem->type;
+  *type = elem->fs_elem_data.type;
   *index = user_selected_element;
 
-  char *name = malloc((strlen(elem->name[0]) * elem->line_count) + 1);
+  char *name = malloc((strlen(elem->name[0]) * elem->fs_elem_data.line_count) + 1);
   char *save_name = name;
 
-  for(i = 0; i < elem->line_count; i++) {
+  for(i = 0; i < elem->fs_elem_data.line_count; i++) {
     sprintf(name, "%s", elem->name[i]);
     name += strlen(elem->name[i]);
   }

@@ -20,6 +20,7 @@ If not, see <https://www.gnu.org/licenses/>.
 
 #include <stdlib.h>
 #include <stdint.h>
+#include <stdbool.h>
 #include <string.h>
 #include <stdio.h>
 #include <time.h>
@@ -45,14 +46,12 @@ If not, see <https://www.gnu.org/licenses/>.
 #define BASE_TEN 10
 
 
-typedef struct {
-  char *track;
-  char *album;
-  char *artist;
-  char *features;
-  int year;
-  int duration;
-} METADATA;
+
+struct track_data {
+  uint16_t duration;
+  uint16_t channels;
+  unsigned int samplerate;
+};
 
 typedef struct {
   AVFormatContext *format_context;
@@ -60,9 +59,7 @@ typedef struct {
   const AVCodec *codec;
   AVCodecContext *codec_context;
   SwrContext *swr_context;
-  METADATA *metadata;
-  unsigned int channels;
-  unsigned int samplerate;
+  struct track_data track_data;
 } AUDIO_SOURCE;
 
 #define META_TRACK_TITLE 0
@@ -78,6 +75,10 @@ typedef struct {
 
 #define MAX_VOLUME 180
 
+static char *metadata[4] = {NULL, NULL, NULL, NULL};
+static unsigned int meta_duration = 0;
+static unsigned int meta_year = 0;
+
 
 static AUDIO_SOURCE *active_sources[2] = {NULL, NULL};
 
@@ -88,10 +89,10 @@ static AVFrame *pFrame = NULL;
 static ALuint source;
 static ALuint buffers[3];
 
-extern volatile _Bool stop_thread;
+extern volatile bool stop_thread;
 
 
-int sleep_time = 10000;
+volatile int sleep_time = 90000;
 
 
 static pthread_t thread;
@@ -114,16 +115,7 @@ char *metadata_retrieve_str(int meta_type) {
   if(active_sources[0] == NULL) {return NULL;}
   if(meta_type > MAX_META_TYPE_STR) {return NULL;}
 
-  switch(meta_type) {
-    case META_TRACK_TITLE:
-      return active_sources[0]->metadata->track;
-    case META_ALBUM_TITLE:
-      return active_sources[0]->metadata->album;
-    case META_ALBUM_ARTIST:
-      return active_sources[0]->metadata->artist;
-    case META_TRACK_ARTISTS:
-      return active_sources[0]->metadata->features;
-  }
+  return metadata[meta_type];
 
   return NULL;
 }
@@ -135,9 +127,9 @@ int metadata_retrieve_int(int meta_type) {
 
   switch(meta_type) {
     case META_TRACK_DURATION:
-      return active_sources[0]->metadata->duration;
+      return meta_duration;
     case META_YEAR:
-      return active_sources[0]->metadata->year;
+      return meta_year;
   }
 
   return 0;
@@ -170,14 +162,14 @@ int playback_read_clock(void) {
 
 void bind_chunk(AUDIO_SOURCE *song, uint8_t *data, int size, ALuint buffer) {
   ALenum format, error;
-  if(song->channels == 1) {
+  if(song->track_data.channels == 1) {
     format = AL_FORMAT_MONO_FLOAT32;
   }
   else {
     format = AL_FORMAT_STEREO_FLOAT32;
   }
 
-  alBufferData(buffer, format, data, size, song->samplerate);
+  alBufferData(buffer, format, data, size, song->track_data.samplerate);
   free(data);
 
   if((error = alGetError()) != AL_NO_ERROR) {
@@ -191,13 +183,13 @@ void bind_chunk(AUDIO_SOURCE *song, uint8_t *data, int size, ALuint buffer) {
 uint8_t *decode_chunk(AUDIO_SOURCE *song, int *buf_size) {
   uint8_t **buf = NULL;
 
-  int channels = song->channels;
+  int channels = song->track_data.channels;
 
 
   int dst_nb_samples;
   int dst_linesize;
   int err = 0;
-  _Bool frame_read = 0;
+  bool frame_read = false;
 
   while(av_read_frame(song->format_context, pPacket) >= 0) {
     if((err = avcodec_send_packet(song->codec_context, pPacket)) < 0) {
@@ -209,16 +201,15 @@ uint8_t *decode_chunk(AUDIO_SOURCE *song, int *buf_size) {
       continue;
     }
 
-    frame_read = 1;
+    frame_read = true;
     break;
   }
 
-  if(frame_read == 0) {return NULL;}
+  if(frame_read == false) {return NULL;}
 
   dst_nb_samples = swr_get_out_samples(song->swr_context, pFrame->nb_samples);
 
-  float temp = (float)dst_nb_samples / (float)song->samplerate;
-  sleep_time = (temp * 1000000) * 0.8;
+  sleep_time = (((float)dst_nb_samples / (float)song->track_data.samplerate) * 1000000) * 0.8;
 
   av_samples_alloc_array_and_samples(&buf, &dst_linesize, channels, dst_nb_samples, AV_SAMPLE_FMT_FLT, 0);
 
@@ -252,19 +243,12 @@ void free_audio_source(AUDIO_SOURCE *song) {
   if(song->swr_context) {swr_free(&song->swr_context);}
   if(song->format_context) {avformat_close_input(&song->format_context);}
 
-  METADATA *meta = song->metadata;
-  if(meta->artist) {free(meta->artist);}
-  if(meta->album) {free(meta->album);}
-  if(meta->track) {free(meta->track);}
-  if(meta->features) {free(meta->features);}
-  free(meta);
-
   free(song);
 }
 
 
 void playback_cleanup(void) {
-  pthread_cancel(thread);
+  stop_thread = true;
   pthread_join(thread, NULL);
 
 
@@ -303,23 +287,27 @@ AUDIO_SOURCE *new_audio_source(const char *filename) {
   if(new_song->codec_param->codec_type != AVMEDIA_TYPE_AUDIO) {
     return NULL;
   }
-  METADATA *meta = calloc(1, sizeof(METADATA));
 
-  new_song->channels = new_song->codec_param->ch_layout.nb_channels;
-  new_song->samplerate = new_song->codec_param->sample_rate;
-  meta->duration = new_song->format_context->duration / AV_TIME_BASE;
 
+  new_song->track_data.channels = new_song->codec_param->ch_layout.nb_channels;
+  new_song->track_data.samplerate = new_song->codec_param->sample_rate;
+  meta_duration = new_song->format_context->duration / AV_TIME_BASE;
+
+
+  if(metadata[0]) {free(metadata[0]);}
+  if(metadata[1]) {free(metadata[1]);}
+  if(metadata[2]) {free(metadata[2]);}
+  if(metadata[3]) {free(metadata[3]);}
 
   const AVDictionaryEntry *tag = NULL;
   char *garbage_ptr; //strtol() wants a double pointer to direct us to the remaining part of the date string. it is not needed in this case, but must be created anyway
   while((tag = av_dict_iterate(new_song->format_context->metadata, tag))) {
-    if(strcmp(tag->key, "ALBUM") == 0) {meta->album = strdup(tag->value);}
-    if(strcmp(tag->key, "TITLE") == 0) {meta->track = strdup(tag->value);}
-    if(strcmp(tag->key, "album_artist") == 0) {meta->artist = strdup(tag->value);}
-    if(strcmp(tag->key, "ARTIST") == 0) {meta->features = strdup(tag->value);}
-    if(strcmp(tag->key, "DATE") == 0) {meta->year = strtol(tag->value, &garbage_ptr, BASE_TEN);}
+    if(strcmp(tag->key, "ALBUM") == 0) {metadata[1] = strdup(tag->value);}
+    if(strcmp(tag->key, "TITLE") == 0) {metadata[0] = strdup(tag->value);}
+    if(strcmp(tag->key, "album_artist") == 0) {metadata[2] = strdup(tag->value);}
+    if(strcmp(tag->key, "ARTIST") == 0) {metadata[3] = strdup(tag->value);}
+    if(strcmp(tag->key, "DATE") == 0) {meta_year = strtol(tag->value, &garbage_ptr, BASE_TEN);}
   }
-  new_song->metadata = meta;
 
   return new_song;
 }
@@ -348,7 +336,7 @@ int prep_audio_source(AUDIO_SOURCE *new) {
   unsigned int src_sample_fmt = new->codec_context->sample_fmt;
   unsigned int dst_sample_fmt = AV_SAMPLE_FMT_FLT;
 
-  int src_rate = new->samplerate;
+  int src_rate = new->track_data.samplerate;
   int dst_rate = src_rate;
 
   ret = swr_alloc_set_opts2(&new->swr_context, dst_ch_layout, dst_sample_fmt, dst_rate, src_ch_layout, src_sample_fmt, src_rate, 0, NULL);
@@ -395,6 +383,12 @@ void playback_update(void) {
     {
     prep_audio_source(active_sources[1]);
 
+    buf = decode_chunk(active_sources[1], &buf_size);
+
+    if(!buf) {
+      active_sources[0] = NULL;
+      active_sources[1] = NULL;
+    }
     bind_chunk(active_sources[1], buf, buf_size, buffers[1]);
     alSourceQueueBuffers(source, 1, &buffers[1]);
 
@@ -434,11 +428,7 @@ void playback_start(const char *filename) {
   uint8_t *buf = decode_chunk(new_song, &buf_size);
   uint8_t *buf_2 = decode_chunk(new_song, &buf_size_2);
 
-  //kill thread
-  //pthread_cancel(thread);
-  //pthread_join(thread, NULL);
-
-  stop_thread = 1;
+  stop_thread = true;
   pthread_join(thread, NULL);
 
   kill_openal_source();
@@ -461,10 +451,8 @@ void playback_start(const char *filename) {
   pthread_create(&thread, NULL, playback_thread, NULL);
 
 
-  display_metadata_bar(new_song->metadata->album, new_song->metadata->artist, new_song->metadata->year, new_song->metadata->features);
-  display_song_playback_bar(new_song->metadata->track);
-
-
+  display_metadata_bar(metadata[1], metadata[2], meta_year, metadata[3]);
+  display_song_playback_bar(metadata[0]);
 
   return;
 }

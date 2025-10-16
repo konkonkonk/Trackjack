@@ -18,6 +18,7 @@ If not, see <https://www.gnu.org/licenses/>.
 
 
 
+#include <stdbool.h>
 #include <time.h>
 #include <unistd.h>
 
@@ -26,13 +27,13 @@ static int last_state;
 
 
 
-volatile _Bool stop_thread = 0;
+volatile bool stop_thread = false;
 
-extern int sleep_time;
+extern volatile int sleep_time;
 void playback_update(void);
 
 
-void usleep_until(int duration) {
+void usleep_until(void) {
   int current_state = clock() * 1000000 / CLOCKS_PER_SEC;
   if(current_state - last_state >= sleep_time) {
     return;
@@ -53,7 +54,7 @@ void *playback_thread(void *) {
   playback_update();
 
   while(!stop_thread) {
-    usleep_until(sleep_time);
+    usleep_until();
     last_state = clock() * 1000000 / CLOCKS_PER_SEC;
     playback_update();
 

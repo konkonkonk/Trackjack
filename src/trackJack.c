@@ -20,6 +20,7 @@ If not, see <https://www.gnu.org/licenses/>.
 
 
 #include <stdlib.h>
+#include <stdbool.h>
 #include <stdio.h>
 #include <ncurses.h>
 #include <stdint.h>
@@ -41,8 +42,6 @@ If not, see <https://www.gnu.org/licenses/>.
 #define NO_COMMAND_HINT NULL
 
 
-_Bool paused = 0;
-
 void parse_cmd(char *command);
 
 
@@ -63,7 +62,6 @@ void init(void) {
 
 int main(int argc, char **argv) {
   char *command = malloc(160);
-  _Bool first_loop = 1;
 
   if(argc > 3) {
     fprintf(stderr, "Too many arguments.\nUse --help for help.\n");
@@ -92,14 +90,14 @@ int main(int argc, char **argv) {
 
   int ch;
   char *name = NULL;
-  _Bool type;
-  _Bool exit = 0;
+  bool type;
+  bool exit = false;
   int fs_index = 0;
   int last_pos = 0;
 
   noecho();
   nodelay(stdscr, 1);
-  while(ch != KEY_ESC && exit == 0) {
+  while(ch != KEY_ESC && exit == false) {
     ch = getch();
 
     switch(ch) {
@@ -111,7 +109,7 @@ int main(int argc, char **argv) {
         break;
       case KEY_CR:
         name = retrieve_fs_element(&type, &fs_index);
-        if(type == 0) {
+        if(type == ELEM_DIR) {
           ui_open_dir(name);
         }
         else {
@@ -136,7 +134,7 @@ int main(int argc, char **argv) {
         getstr(command);
 
         if(strcmp(command, "q") == 0) {
-          exit = 1;
+          exit = true;
         }
         else {
           parse_cmd(command);
