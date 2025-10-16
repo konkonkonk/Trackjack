@@ -6,9 +6,9 @@ PROJECTNAME := trackjack
 
 LDFLAGS := -Iheaders -lncurses -lopenal -lalut -lm -lavcodec -lavformat -lavutil -lswresample
 
-OPTPARAM := -O0
+OPTPARAM := -O3
 
-DEBUGPARAM := -g
+DEBUGPARAM :=
 
 compile:
 	$(CC) -o $(PROJECTNAME) $(SRC) $(LDFLAGS) $(OPTPARAM) $(DEBUGPARAM)
